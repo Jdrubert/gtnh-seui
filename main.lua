@@ -1,7 +1,7 @@
 -- SEUI main.lua
--- 太空电梯双业务 UI 主入口
+-- Space Elevator dual-business UI main entry point
 -- GTNH 2.9.0-RC-1 / OpenComputers 1.12.62-GTNH
--- Lua 5.2/5.3 双兼容
+-- Compatible with both Lua 5.2 and 5.3
 
 local component = require("component")
 local computer = require("computer")
@@ -9,15 +9,16 @@ local event = require("event")
 local os = require("os")
 local filesystem = require("filesystem")
 
--- OpenOS 的 package.path 包含 ./，但用户可能从任意目录运行 /seui/main.lua。
--- process.load 会把当前程序绝对路径写入环境变量 _，据此补入脚本目录。
+-- OpenOS's package.path contains ./, but the user may run /seui/main.lua from any directory.
+-- process.load writes the absolute path of the current program into the environment variable _,
+-- so we use it to add the script directory to the search path.
 local runningProgram = os.getenv("_")
 if runningProgram then
   local baseDir = filesystem.path(runningProgram)
   package.path = baseDir .. "?.lua;" .. baseDir .. "?/init.lua;" .. package.path
 end
 
--- 加载模块
+-- Load modules
 local config = require("config")
 local log = require("lib.log")
 local store = require("lib.store")
@@ -29,11 +30,11 @@ local scheduler = require("lib.scheduler")
 local controller = require("lib.controller")
 local ui = require("lib.ui")
 
--- ========== 应用状态 ==========
+-- ========== Application state ==========
 local app = {
   running = true,
   mode = "readonly",        -- "simulate" / "readonly" / "control"
-  hw = nil,                 -- 硬件快照
+  hw = nil,                 -- hardware snapshot
   nextInventoryScan = 0,
   nextHardwareRescan = 0,
   nextTargetRescan = 0,
@@ -46,7 +47,7 @@ local app = {
   config = config,
 }
 
--- ========== 解析命令行参数 ==========
+-- ========== Parse command-line arguments ==========
 local shell = require("shell")
 local args, opts = shell.parse(...)
 
@@ -59,10 +60,10 @@ else
 end
 config.runtimeMode = app.mode
 
--- ========== 初始化 ==========
+-- ========== Initialization ==========
 local function initLog()
   log.init(config.logFile, config.logMaxSize, config.logKeep)
-  log.info("main", "=== SEUI 启动 === mode=" .. app.mode)
+  log.info("main", "=== SEUI started === mode=" .. app.mode)
 end
 
 local function initStore()
@@ -73,7 +74,7 @@ local function loadOrCreateConfig()
   local data, err = store.load()
   if data then
     data = store.migrate(data)
-    -- 合并存储的配置到运行时
+    -- Merge stored configuration into the runtime
     if data.ui then
       ui.setState(data.ui)
     end
@@ -81,8 +82,8 @@ local function loadOrCreateConfig()
       local seenIds = {}
       for _, t in ipairs(data.targets) do
         if t.id and seenIds[t.id] then
-          log.warn("main", "忽略重复保存的目标: " .. tostring(t.id))
-          app.configDirty = true  -- 需要重写清理后的配置
+          log.warn("main", "Ignoring duplicate saved target: " .. tostring(t.id))
+          app.configDirty = true  -- the cleaned-up configuration needs to be rewritten
         else
           if t.id then seenIds[t.id] = true end
           model.addTarget(t)
@@ -91,59 +92,59 @@ local function loadOrCreateConfig()
     end
     local _, removed = fluidCatalog.populate(model)
     if removed and removed > 0 then
-      log.warn("main", "启动去重：移除 " .. removed .. " 个重复流体目标")
+      log.warn("main", "Startup dedup: removed " .. removed .. " duplicate fluid targets")
       app.configDirty = true
     end
-    log.info("main", "从配置加载 " .. #model.getTargets() .. " 个目标")
+    log.info("main", "Loaded " .. #model.getTargets() .. " targets from config")
   else
-    log.info("main", "无配置文件: " .. tostring(err))
+    log.info("main", "No config file: " .. tostring(err))
     fluidCatalog.populate(model)
   end
 end
 
 local function injectSimulatedData()
-  -- 模拟模式：注入假数据
+  -- Simulate mode: inject fake data
   local fluids = {
-    {label = "氢气", fluid = "hydrogen", planet = 8, gas = 1},
-    {label = "氦气", fluid = "helium", planet = 5, gas = 4},
-    {label = "氧气", fluid = "oxygen", planet = 7, gas = 4},
-    {label = "氮气", fluid = "nitrogen", planet = 7, gas = 3},
-    {label = "氟", fluid = "fluorine", planet = 7, gas = 2},
-    {label = "氚", fluid = "tritium", planet = 6, gas = 2},
-    {label = "氘", fluid = "deuterium", planet = 6, gas = 1},
-    {label = "氦-3", fluid = "helium-3", planet = 5, gas = 2},
-    {label = "氙", fluid = "xenon", planet = 6, gas = 4},
-    {label = "氪", fluid = "krypton", planet = 5, gas = 8},
-    {label = "氖", fluid = "neon", planet = 5, gas = 6},
-    {label = "氩", fluid = "argon", planet = 5, gas = 7},
-    {label = "氡", fluid = "radon", planet = 8, gas = 6},
-    {label = "甲烷", fluid = "methane", planet = 5, gas = 9},
-    {label = "氨气", fluid = "ammonia", planet = 6, gas = 3},
-    {label = "乙烯", fluid = "ethylene", planet = 6, gas = 5},
-    {label = "乙烷", fluid = "ethane", planet = 5, gas = 11},
-    {label = "一氧化碳", fluid = "carbon_monoxide", planet = 5, gas = 1},
-    {label = "二氧化碳", fluid = "carbon_dioxide", planet = 4, gas = 8},
-    {label = "硫化氢", fluid = "hydrogen_sulfide", planet = 5, gas = 10},
-    {label = "氟化氢", fluid = "hydrofluoric_acid", planet = 7, gas = 1},
-    {label = "硫酸", fluid = "sulfuric_acid", planet = 4, gas = 1},
-    {label = "盐水", fluid = "salt_water", planet = 5, gas = 3},
-    {label = "蒸馏水", fluid = "distilled_water", planet = 8, gas = 5},
-    {label = "熔融铁", fluid = "molten_iron", planet = 4, gas = 2},
-    {label = "熔融铜", fluid = "molten_copper", planet = 8, gas = 3},
-    {label = "熔融锡", fluid = "molten_tin", planet = 8, gas = 7},
-    {label = "熔融铅", fluid = "molten_lead", planet = 4, gas = 5},
-    {label = "氯苯", fluid = "chlorobenzene", planet = 2, gas = 1},
-    {label = "末影黏液", fluid = "ender_goo", planet = 3, gas = 1},
-    {label = "岩浆", fluid = "lava", planet = 3, gas = 3},
-    {label = "天然气", fluid = "natural_gas", planet = 3, gas = 4},
-    {label = "石油", fluid = "oil", planet = 4, gas = 3},
-    {label = "重油", fluid = "heavy_oil", planet = 4, gas = 4},
-    {label = "轻油", fluid = "light_oil", planet = 4, gas = 7},
-    {label = "原油", fluid = "raw_oil", planet = 4, gas = 6},
-    {label = "液态空气", fluid = "liquid_air", planet = 8, gas = 2},
-    {label = "液氧", fluid = "liquid_oxygen", planet = 5, gas = 5},
-    {label = "未知液体", fluid = "unknown_liquid", planet = 8, gas = 4},
-    {label = "硅烷", fluid = "silane", planet = 2, gas = 2},
+    {label = "Hydrogen", fluid = "hydrogen", planet = 8, gas = 1},
+    {label = "Helium", fluid = "helium", planet = 5, gas = 4},
+    {label = "Oxygen", fluid = "oxygen", planet = 7, gas = 4},
+    {label = "Nitrogen", fluid = "nitrogen", planet = 7, gas = 3},
+    {label = "Fluorine", fluid = "fluorine", planet = 7, gas = 2},
+    {label = "Tritium", fluid = "tritium", planet = 6, gas = 2},
+    {label = "Deuterium", fluid = "deuterium", planet = 6, gas = 1},
+    {label = "Helium-3", fluid = "helium-3", planet = 5, gas = 2},
+    {label = "Xenon", fluid = "xenon", planet = 6, gas = 4},
+    {label = "Krypton", fluid = "krypton", planet = 5, gas = 8},
+    {label = "Neon", fluid = "neon", planet = 5, gas = 6},
+    {label = "Argon", fluid = "argon", planet = 5, gas = 7},
+    {label = "Radon", fluid = "radon", planet = 8, gas = 6},
+    {label = "Methane", fluid = "methane", planet = 5, gas = 9},
+    {label = "Ammonia", fluid = "ammonia", planet = 6, gas = 3},
+    {label = "Ethylene", fluid = "ethylene", planet = 6, gas = 5},
+    {label = "Ethane", fluid = "ethane", planet = 5, gas = 11},
+    {label = "Carbon Monoxide", fluid = "carbon_monoxide", planet = 5, gas = 1},
+    {label = "Carbon Dioxide", fluid = "carbon_dioxide", planet = 4, gas = 8},
+    {label = "Hydrogen Sulfide", fluid = "hydrogen_sulfide", planet = 5, gas = 10},
+    {label = "Hydrofluoric Acid", fluid = "hydrofluoric_acid", planet = 7, gas = 1},
+    {label = "Sulfuric Acid", fluid = "sulfuric_acid", planet = 4, gas = 1},
+    {label = "Salt Water", fluid = "salt_water", planet = 5, gas = 3},
+    {label = "Distilled Water", fluid = "distilled_water", planet = 8, gas = 5},
+    {label = "Molten Iron", fluid = "molten_iron", planet = 4, gas = 2},
+    {label = "Molten Copper", fluid = "molten_copper", planet = 8, gas = 3},
+    {label = "Molten Tin", fluid = "molten_tin", planet = 8, gas = 7},
+    {label = "Molten Lead", fluid = "molten_lead", planet = 4, gas = 5},
+    {label = "Chlorobenzene", fluid = "chlorobenzene", planet = 2, gas = 1},
+    {label = "Ender Goo", fluid = "ender_goo", planet = 3, gas = 1},
+    {label = "Lava", fluid = "lava", planet = 3, gas = 3},
+    {label = "Natural Gas", fluid = "natural_gas", planet = 3, gas = 4},
+    {label = "Oil", fluid = "oil", planet = 4, gas = 3},
+    {label = "Heavy Oil", fluid = "heavy_oil", planet = 4, gas = 4},
+    {label = "Light Oil", fluid = "light_oil", planet = 4, gas = 7},
+    {label = "Raw Oil", fluid = "raw_oil", planet = 4, gas = 6},
+    {label = "Liquid Air", fluid = "liquid_air", planet = 8, gas = 2},
+    {label = "Liquid Oxygen", fluid = "liquid_oxygen", planet = 5, gas = 5},
+    {label = "Unknown Liquid", fluid = "unknown_liquid", planet = 8, gas = 4},
+    {label = "Silane", fluid = "silane", planet = 2, gas = 2},
   }
 
   for i, f in ipairs(fluids) do
@@ -161,12 +162,12 @@ local function injectSimulatedData()
     })
   end
 
-  -- 矿物假数据
+  -- Fake ore/mineral data
   local ores = {
-    {label = "铁锭", name = "minecraft:iron_ingot", damage = 0},
-    {label = "金锭", name = "minecraft:gold_ingot", damage = 0},
-    {label = "铜锭", name = "gregtech:gt.metaitem.01", damage = 12000},
-    {label = "锡锭", name = "gregtech:gt.metaitem.01", damage = 13000},
+    {label = "Iron Ingot", name = "minecraft:iron_ingot", damage = 0},
+    {label = "Gold Ingot", name = "minecraft:gold_ingot", damage = 0},
+    {label = "Copper Ingot", name = "gregtech:gt.metaitem.01", damage = 12000},
+    {label = "Tin Ingot", name = "gregtech:gt.metaitem.01", damage = 13000},
   }
   for i, o in ipairs(ores) do
     model.addTarget({
@@ -183,29 +184,30 @@ local function injectSimulatedData()
     })
   end
 
-  log.info("main", "模拟模式：注入 " .. #fluids .. " 流体 + " .. #ores .. " 矿物")
+  log.info("main", "Simulate mode: injected " .. #fluids .. " fluids + " .. #ores .. " ores")
 end
 
 local function initUI()
   local gpu = component.gpu
   local screen = component.screen or nil
   if not gpu then
-    error("未找到 GPU 组件")
+    error("GPU component not found")
   end
   ui.init(gpu, screen, config)
 end
 
--- ========== 扫描 ==========
+-- ========== Scanning ==========
 
 local function doHardwareScan()
-  log.info("main", "开始硬件扫描...")
+  log.info("main", "Starting hardware scan...")
   app.hw = discovery.scan()
 
   if app.mode ~= "simulate" then
     controller.init(app.hw, config)
   end
 
-  -- 初始目录已有 40 个 OFF 流体；首次启动仍需自动导入请求器中的启用目标。
+  -- The initial catalog already has 40 fluids set to OFF; on first launch we still
+  -- need to automatically import the enabled targets from the level maintainers.
   local hasImported = false
   for _, t in ipairs(model.getTargets()) do
     if t.sourceRef then hasImported = true break end
@@ -220,7 +222,7 @@ end
 
 local function doInventoryScan()
   if app.mode == "simulate" then
-    -- 模拟模式不扫描真实库存
+    -- Simulate mode does not scan real inventory
     return
   end
 
@@ -231,7 +233,7 @@ local function doInventoryScan()
 
   inventory.scan(fluidProxy, meProxy, minerTargets)
 
-  -- 更新所有目标的当前库存
+  -- Update the current stock of every target
   local snap = inventory.getSnapshot()
   local targets = model.getTargets()
   for _, t in ipairs(targets) do
@@ -242,7 +244,7 @@ local function doInventoryScan()
   ui.markDirty()
 end
 
--- ========== 调度与控制 ==========
+-- ========== Scheduling and control ==========
 
 local function doSchedule()
   if app.mode == "simulate" or app.mode == "readonly" then
@@ -254,7 +256,7 @@ local function doSchedule()
     local pumpFresh = inventory.isFresh(now, config.maxSnapshotAge, "pump")
     local minerFresh = inventory.isFresh(now, config.maxSnapshotAge, "miner")
 
-    -- PUMP 调度
+    -- PUMP scheduling
     if pumpFresh then
       local pumpTargets = model.getByDomain("pump")
       local pumpAssignments = scheduler.plan("pump", pumpTargets, app.hw.pumps, now, config)
@@ -264,11 +266,11 @@ local function doSchedule()
         controller.stopDomain("pump", "all targets satisfied")
       end
     else
-      log.warn("main", "流体快照过期，停止 PUMP 新派工")
+      log.warn("main", "Fluid snapshot is stale, stopping new PUMP dispatches")
       if config.failClosed then controller.stopDomain("pump", "stale inventory") end
     end
 
-    -- MINER 调度
+    -- MINER scheduling
     if minerFresh then
       local minerTargets = model.getByDomain("miner")
       local minerAssignments = scheduler.plan("miner", minerTargets, app.hw.miners, now, config)
@@ -278,13 +280,13 @@ local function doSchedule()
         controller.stopDomain("miner", "all targets satisfied")
       end
     else
-      log.warn("main", "物品快照过期，停止 MINER 新派工")
+      log.warn("main", "Item snapshot is stale, stopping new MINER dispatches")
       if config.failClosed then controller.stopDomain("miner", "stale inventory") end
     end
   end
 end
 
--- ========== 状态推导 ==========
+-- ========== State derivation ==========
 
 local function updateTargetStates()
   local now = computer.uptime()
@@ -292,7 +294,7 @@ local function updateTargetStates()
   local targets = model.getTargets()
 
   for _, t in ipairs(targets) do
-    -- 检查是否有机器正在服务此目标
+    -- Check whether any machine is currently serving this target
     local machineActive = false
     local hasPendingTask = false
     for addr, w in pairs(ws) do
@@ -306,13 +308,13 @@ local function updateTargetStates()
       end
     end
 
-    -- 只为当前页面所属 domain 的目标推导状态
+    -- Only derive state for targets belonging to the domain of the current page
     local fresh = app.mode == "simulate" or inventory.isFresh(now, config.maxSnapshotAge, t.domain)
     model.deriveState(t, fresh, machineActive, hasPendingTask)
   end
 end
 
--- ========== 配置保存 ==========
+-- ========== Saving configuration ==========
 
 local function saveConfig(force)
   if not app.configDirty then return end
@@ -355,19 +357,19 @@ local function saveConfig(force)
     app.configDirty = false
     app.lastSaveTime = now
   else
-    log.error("main", "配置保存失败: " .. tostring(err))
+    log.error("main", "Failed to save config: " .. tostring(err))
   end
 end
 
--- ========== 主循环 ==========
+-- ========== Main loop ==========
 
 local function mainLoop()
-  log.info("main", "进入主循环 mode=" .. app.mode)
+  log.info("main", "Entering main loop mode=" .. app.mode)
 
   while app.running do
     local now = computer.uptime()
 
-    -- 硬件重扫
+    -- Hardware rescan
     if app.needRescan or now >= app.nextHardwareRescan then
       doHardwareScan()
       app.needRescan = false
@@ -384,35 +386,35 @@ local function mainLoop()
       end
     end
 
-    -- 库存扫描
+    -- Inventory scan
     if now >= app.nextInventoryScan then
       doInventoryScan()
       app.nextInventoryScan = now + config.scanInterval
     end
 
-    -- 状态推导
+    -- State derivation
     updateTargetStates()
 
-    -- 调度
+    -- Scheduling
     if now >= app.nextSchedule then
       doSchedule()
       app.nextSchedule = now + config.scheduleTick
       ui.setNextSchedule(app.nextSchedule)
     end
 
-    -- 控制器推进 (非阻塞)
+    -- Advance the controller (non-blocking)
     if app.mode == "control" then
       controller.tick(now, config, app.hw)
     end
 
-    -- 配置保存
+    -- Save configuration
     saveConfig()
 
-    -- 渲染
+    -- Render
     local fresh = app.mode == "simulate" or inventory.isFresh(now, config.maxSnapshotAge)
     ui.render(app.hw, config, now, model.getTargets(), fresh)
 
-    -- 事件等待
+    -- Wait for events
     local timeout = math.max(0.05, math.min(0.25,
       math.min(app.nextInventoryScan, app.nextSchedule) - now))
     local ev = table.pack(event.pull(timeout))
@@ -420,7 +422,7 @@ local function mainLoop()
     if ev.n > 0 then
       if ev[1] == "interrupted" then
         app.running = false
-        log.info("main", "收到 interrupted 信号，退出")
+        log.info("main", "Received interrupted signal, exiting")
       else
         ui.dispatch(ev, app)
       end
@@ -428,19 +430,19 @@ local function mainLoop()
   end
 end
 
--- ========== 清理 ==========
+-- ========== Cleanup ==========
 
 local function cleanup()
-  log.info("main", "开始清理...")
-  -- 停止所有受管机器
+  log.info("main", "Starting cleanup...")
+  -- Stop all managed machines
   if app.hw and app.mode == "control" then
     controller.stopAll("shutdown")
   end
-  -- 保存配置（退出时忽略节流）
+  -- Save configuration (throttling is ignored on exit)
   saveConfig(true)
-  -- 恢复终端
+  -- Restore the terminal
   ui.restore()
-  -- 关闭日志
+  -- Close the log
   log.close()
 end
 
@@ -455,7 +457,7 @@ local function showCrashAndWait(err)
   io.stderr:write(message .. "\n\n")
   io.stderr:write("Crash report: " .. path .. "\n")
   io.stderr:write("Press any key or touch the screen to exit.\n")
-  -- 不再让错误只闪几帧：用户确认前保持在恢复后的终端上。
+  -- Don't let the error flash by for only a few frames: stay on the restored terminal until the user confirms.
   while true do
     local ok, name = pcall(event.pull)
     if not ok or name == "key_down" or name == "touch" or name == "interrupted" then
@@ -464,35 +466,35 @@ local function showCrashAndWait(err)
   end
 end
 
--- ========== 入口 ==========
+-- ========== Entry point ==========
 
 local function run()
   initLog()
   initStore()
 
-  -- 加载配置
+  -- Load configuration
   loadOrCreateConfig()
 
-  -- 模拟模式注入假数据
+  -- Simulate mode: inject fake data
   if app.mode == "simulate" then
     model.clear()
     injectSimulatedData()
   end
 
-  -- 初始化 UI
+  -- Initialize UI
   initUI()
 
-  -- 硬件扫描
+  -- Hardware scan
   if app.mode ~= "simulate" then
     doHardwareScan()
   else
-    -- 模拟模式下创建空硬件快照
+    -- In simulate mode, create an empty hardware snapshot
     app.hw = { pumps = {}, miners = {}, levelMaintainers = {}, transposers = {},
                fluidInterface = nil, meInterface = nil, database = nil,
                gpu = component.gpu, screen = component.screen, paramBackend = "keyed" }
   end
 
-  -- 首次库存扫描
+  -- First inventory scan
   if app.mode ~= "simulate" then
     doInventoryScan()
   end
@@ -501,10 +503,10 @@ local function run()
   app.nextSchedule = computer.uptime() + config.scheduleTick
   app.nextHardwareRescan = computer.uptime() + config.hardwareRescan
 
-  -- 主循环 (带崩溃保护)
+  -- Main loop (with crash protection)
   local ok, err = xpcall(mainLoop, debug.traceback)
   if not ok then
-    log.fatal("main", "崩溃: " .. tostring(err))
+    log.fatal("main", "Crash: " .. tostring(err))
     local cleanupOK, cleanupErr = pcall(cleanup)
     if not cleanupOK then
       err = tostring(err) .. "\ncleanup failed: " .. tostring(cleanupErr)
