@@ -1,5 +1,5 @@
 -- SEUI lib/ui.lua
--- 160x50 触摸 UI：三页 PUMP/MINER/SYSTEM + 三列目标矩阵 + 底部操作区
+-- 160x50 touch UI: three pages PUMP/MINER/SYSTEM + three-column target matrix + bottom action area
 
 local component = require("component")
 local unicode = require("unicode")
@@ -13,7 +13,7 @@ local inventory = require("lib.inventory")
 
 local M = {}
 
--- ========== 布局常量 ==========
+-- ========== Layout constants ==========
 local W = 160
 local H = 50
 local COL_X = {2, 54, 106}
@@ -21,31 +21,31 @@ local COL_W = 51
 local ROWS_PER_COL = 14
 local BAR_W = 47
 
--- ========== 状态 ==========
+-- ========== State ==========
 local ui = {
   gpu = nil,
   screen = nil,
   page = "pump",      -- pump / miner / system
   selectedId = nil,
-  pageOffset = 0,     -- 分页偏移
-  modal = nil,        -- 模态编辑框
+  pageOffset = 0,     -- page offset
+  modal = nil,        -- Modal edit box
   hitboxGroups = { header = {}, targets = {}, actions = {} },
   activeHitboxGroup = "actions",
   dirty = { all = true, header = true, targets = true, details = true, actions = true, system = true },
   lastAction = "idle",
   nextSchedule = 0,
   scanning = false,
-  stopAllConfirm = 0, -- STOP ALL 确认时间戳
+  stopAllConfirm = 0, -- STOP ALL confirmation timestamp
   savedFg = 0xffffff,
   savedBg = 0x000000,
   savedResolution = nil,
 }
 
-local STATE_ZH = {UNKNOWN="未知",OK="正常",LOW="不足",RUN="运行",WAIT="等待",OFF="关闭",FAULT="故障",STALE="过期",READY="就绪"}
-local MODE_ZH = {OFF="关闭",TARGET="按目标",ALWAYS="持续"}
-local PHASE_ZH = {IDLE="空闲",REQUEST_STOP="请求停机",WAIT_IDLE="等待停稳",PREPARE="准备",APPLY="写入参数",VERIFY="校验参数",START="启动",RUNNING="运行",REQUEST_END="结束任务",FAULT="故障"}
+local STATE_ZH = {UNKNOWN="Unknown",OK="OK",LOW="Low",RUN="Running",WAIT="Waiting",OFF="Off",FAULT="Fault",STALE="Stale",READY="Ready"}
+local MODE_ZH = {OFF="Off",TARGET="Target",ALWAYS="Always"}
+local PHASE_ZH = {IDLE="Idle",REQUEST_STOP="Stop req.",WAIT_IDLE="Wait idle",PREPARE="Prepare",APPLY="Apply",VERIFY="Verify",START="Start",RUNNING="Running",REQUEST_END="End task",FAULT="Fault"}
 
--- ========== 颜色 ==========
+-- ========== Colors ==========
 local C = {
   bg       = 0x1a1a2e,
   fg       = 0xc0c0c0,
@@ -68,18 +68,18 @@ local C = {
   dim      = 0x666688,
 }
 
--- ========== 初始化 ==========
+-- ========== Initialization ==========
 function M.init(gpu, screen, config)
   ui.gpu = gpu
   ui.screen = screen
   C = config and config.color or C
 
-  -- 保存原始终端状态
+  -- Save the original terminal state
   ui.savedFg, _ = gpu.getForeground()
   ui.savedBg, _ = gpu.getBackground()
   ui.savedResolution = { gpu.getResolution() }
 
-  -- 绑定屏幕
+  -- Bind the screen
   if screen then
     gpu.bind(screen.address or component.screen.address)
     if screen.setTouchModeInverted then
@@ -97,7 +97,7 @@ function M.init(gpu, screen, config)
   gpu.fill(1, 1, W, H, " ")
 
   ui.dirty.all = true
-  log.info("ui", "UI 初始化完成 " .. W .. "x" .. H .. "x8")
+  log.info("ui", "UI initialized " .. W .. "x" .. H .. "x8")
 end
 
 function M.restore()
@@ -112,10 +112,10 @@ function M.restore()
     ui.screen.setTouchModeInverted(false)
   end
   term.clear()
-  log.info("ui", "终端已恢复")
+  log.info("ui", "Terminal restored")
 end
 
--- ========== 绘制原语 ==========
+-- ========== Drawing primitives ==========
 local function setColors(fg, bg)
   ui.gpu.setForeground(fg or C.fg)
   ui.gpu.setBackground(bg or C.bg)
@@ -148,7 +148,7 @@ local function drawButton(x, y, w, text, enabled, action, payload)
   end
 end
 
--- 注册命中区域
+-- Register a hit area
 local function addHitbox(x, y, w, h, action, payload)
   local group = ui.hitboxGroups[ui.activeHitboxGroup] or ui.hitboxGroups.actions
   group[#group + 1] = {
@@ -158,7 +158,7 @@ local function addHitbox(x, y, w, h, action, payload)
   }
 end
 
--- ========== 状态颜色 ==========
+-- ========== State colors ==========
 local function stateColor(state)
   if state == "OK" then return C.ok
   elseif state == "LOW" then return C.low
@@ -172,53 +172,53 @@ local function stateColor(state)
   end
 end
 
--- ========== 绘制各区域 ==========
+-- ========== Drawing each region ==========
 
 function M.renderHeader(hw, config, now)
   if not ui.dirty.header and not ui.dirty.all then return end
   ui.activeHitboxGroup = "header"
   ui.hitboxGroups.header = {}
 
-  -- y=1: 标题 + 页签
-  local title = "太空电梯智能控制台 v1.0.6"
+  -- y=1: title + tabs
+  local title = "Space Elevator Smart Console v1.0.6"
   fillRect(1, 1, W, 1, " ", C.header, C.bg)
   drawText(2, 1, title, C.header, C.bg)
   local tabX = W - 24
-  drawButton(tabX,      1, 6, "钻机", true, "tab_pump")
-  drawButton(tabX + 7,  1, 7, "矿机", true, "tab_miner")
-  drawButton(tabX + 15, 1, 8, "系统", true, "tab_system")
+  drawButton(tabX,      1, 6, "Pump", true, "tab_pump")
+  drawButton(tabX + 7,  1, 7, "Miner", true, "tab_miner")
+  drawButton(tabX + 15, 1, 8, "System", true, "tab_system")
   local activeX, activeW, activeLabel
-  if ui.page == "pump" then activeX, activeW, activeLabel = tabX, 6, "钻机"
-  elseif ui.page == "miner" then activeX, activeW, activeLabel = tabX + 7, 7, "矿机"
-  else activeX, activeW, activeLabel = tabX + 15, 8, "系统" end
+  if ui.page == "pump" then activeX, activeW, activeLabel = tabX, 6, "Pump"
+  elseif ui.page == "miner" then activeX, activeW, activeLabel = tabX + 7, 7, "Miner"
+  else activeX, activeW, activeLabel = tabX + 15, 8, "System" end
   fillRect(activeX, 1, activeW, 1, " ", C.header, C.button_on)
   drawText(activeX, 1, format.fitCenter(activeLabel, activeW), C.header, C.button_on)
 
-  -- y=2: 设备数 + 调度倒计时 + ME 耗时
+  -- y=2: device counts + schedule countdown + ME time
   local snapshot = inventory.getSnapshot()
   local meTime = string.format("ME:%.2fs", snapshot.duration or 0)
   local nextS = math.max(0, math.floor((ui.nextSchedule or 0) - now))
   local pumpCount = #hw.pumps
   local minerCount = #hw.miners
-  local runtimeMode = ({simulate="模拟",readonly="只读",control="控制"})[config.runtimeMode] or tostring(config.runtimeMode or "?")
-  local info = string.format("模式:%s 钻机:%d 矿机:%d 扫描:%ds %s 下次:%ds 内存:%dKB",
+  local runtimeMode = ({simulate="Simulate",readonly="Read-only",control="Control"})[config.runtimeMode] or tostring(config.runtimeMode or "?")
+  local info = string.format("Mode:%s Pumps:%d Miners:%d Scan:%ds %s Next:%ds Mem:%dKB",
     runtimeMode, pumpCount, minerCount, config.scanInterval, meTime, nextS,
     math.floor(computer.freeMemory() / 1024))
   fillRect(1, 2, W, 1, " ", C.dim, C.bg)
   drawText(2, 2, info, C.dim, C.bg)
 
-  -- y=3: 最近动作 + Refresh
+  -- y=3: last action + Refresh
   fillRect(1, 3, W, 1, " ", C.fg, C.bg)
-  drawText(2, 3, "操作: " .. (ui.lastAction or "空闲"), C.fg, C.bg)
+  drawText(2, 3, "Action: " .. (ui.lastAction or "idle"), C.fg, C.bg)
 
-  local refreshLabel = ui.scanning and "[扫描中]" or "[刷新]"
+  local refreshLabel = ui.scanning and "[Scanning]" or "[Refresh]"
   local refreshX = W - 30
-  drawButton(refreshX - 10, 3, 9, "导入", true, "import_targets")
+  drawButton(refreshX - 10, 3, 9, "Import", true, "import_targets")
   drawButton(refreshX, 3, 12, refreshLabel, not ui.scanning, "refresh")
-  drawButton(refreshX + 12, 3, 9, "[重扫]", true, "rescan")
-  drawButton(refreshX + 22, 3, 8, "[停机]", true, "stop_all")
+  drawButton(refreshX + 12, 3, 9, "[Rescan]", true, "rescan")
+  drawButton(refreshX + 22, 3, 8, "[Stop]", true, "stop_all")
 
-  -- y=4: 分隔
+  -- y=4: separator
   fillRect(1, 4, W, 1, "-", C.dim, C.bg)
 
   ui.dirty.header = false
@@ -232,22 +232,22 @@ function M.renderTargets(targets, snapshotFresh, now, config)
   local pageTargets = {}
   local maxItems = ROWS_PER_COL * 3  -- 42
 
-  -- 过滤当前 domain
+  -- Filter the current domain
   for _, t in ipairs(targets) do
     if t.domain == ui.page or ui.page == "system" then
       table.insert(pageTargets, t)
     end
   end
 
-  -- 分页
+  -- Paging
   local total = #pageTargets
   local startIdx = ui.pageOffset * maxItems + 1
   local endIdx = math.min(startIdx + maxItems - 1, total)
 
-  -- 清空目标区域
+  -- Clear the target area
   fillRect(1, 5, W, 28, " ", C.fg, C.bg)
 
-  -- 绘制每个目标
+  -- Draw each target
   for i = startIdx, endIdx do
     local t = pageTargets[i]
     if not t then break end
@@ -257,7 +257,7 @@ function M.renderTargets(targets, snapshotFresh, now, config)
     x = COL_X[x + 1] or COL_X[1]
     y = 5 + y * 2
 
-    -- 第一行：序号 标签 模式 数量 权重 状态
+    -- First row: index, label, mode, amount, weight, state
     local isSelected = (ui.selectedId == t.id)
     local state = t.runtime.state or "UNKNOWN"
     local sc = stateColor(state)
@@ -274,10 +274,10 @@ function M.renderTargets(targets, snapshotFresh, now, config)
     fillRect(x, y, COL_W, 1, " ", fg, bg)
     drawText(x, y, line1, fg, bg)
 
-    -- 点击选中
+    -- Click to select
     addHitbox(x, y, COL_W, 1, "select", { id = t.id })
 
-    -- 第二行：进度条
+    -- Second row: progress bar
     local ratio = 0
     if t.target > 0 then
       ratio = math.min(1, math.max(0, (t.current + t.pending) / t.target))
@@ -290,22 +290,22 @@ function M.renderTargets(targets, snapshotFresh, now, config)
       fillRect(x, y + 1, filled, 1, " ", C.fg, barColor)
     end
 
-    -- 百分比文字叠加
+    -- Percentage text overlay
     local pctStr = string.format("%3d%%", math.floor(ratio * 100))
     drawText(x + BAR_W - 4, y + 1, pctStr, C.fg, barColor)
   end
 
-  -- y=33: 分页信息
+  -- y=33: paging info
   local pages = math.max(1, math.ceil(total / maxItems))
-  local pageStr = string.format("第 %d/%d 页  共 %d 项（滚轮或上/下页）",
+  local pageStr = string.format("Page %d/%d  %d items (mouse wheel or PgUp/PgDn)",
     ui.pageOffset + 1, pages, total)
   fillRect(1, 33, W, 1, " ", C.dim, C.bg)
   drawText(2, 33, pageStr, C.dim, C.bg)
 
-  -- Prev/Next 按钮
+  -- Prev/Next buttons
   if pages > 1 then
-    drawButton(W - 22, 33, 7, "[上页]", ui.pageOffset > 0, "prev_page")
-    drawButton(W - 14, 33, 7, "[下页]", ui.pageOffset < pages - 1, "next_page")
+    drawButton(W - 22, 33, 7, "[Prev]", ui.pageOffset > 0, "prev_page")
+    drawButton(W - 14, 33, 7, "[Next]", ui.pageOffset < pages - 1, "next_page")
   end
 
   ui.dirty.targets = false
@@ -318,7 +318,7 @@ function M.renderDetails(targets, now)
 
   local t = ui.selectedId and model.getById(ui.selectedId) or nil
   if not t then
-    drawText(2, 35, "(未选择目标 — 点击列表中的目标查看详情)", C.dim, C.bg)
+    drawText(2, 35, "(No target selected - click one in the list for details)", C.dim, C.bg)
     ui.dirty.details = false
     return
   end
@@ -327,19 +327,19 @@ function M.renderDetails(targets, now)
   local sc = stateColor(state)
   local ratio = model.getRatio(t)
 
-  -- y=34: 标题行
+  -- y=34: title row
   drawText(2, 34, format.fit(t.label, 30), C.header, C.bg)
-  drawText(33, 34, string.format("标识:%s  模式:%s  权重:%+d  %s",
+  drawText(33, 34, string.format("ID:%s  Mode:%s  Weight:%+d  %s",
     t.id, MODE_ZH[t.mode] or t.mode, t.weight or 0, STATE_ZH[state] or state), sc, C.bg)
 
-  -- y=35: 数量详情
-  drawText(2, 35, string.format("当前:%s  目标:%s  待处理:%s  比例:%.1f%%",
+  -- y=35: amount details
+  drawText(2, 35, string.format("Current:%s  Target:%s  Pending:%s  Ratio:%.1f%%",
     format.formatAmount(t.current), format.formatAmount(t.target),
     format.formatAmount(t.pending), ratio * 100), C.fg, C.bg)
 
-  -- y=36: 路由参数
+  -- y=36: route parameters
   if t.domain == "pump" then
-    drawText(2, 36, string.format("星球类型:%s  气体类型:%s  批处理:%s  基础流量:%s L/s",
+    drawText(2, 36, string.format("Planet type:%s  Gas type:%s  Batch:%s  Base rate:%s L/s",
       tostring(t.route.planetType or "?"),
       tostring(t.route.gasType or "?"),
       tostring(t.route.maxBatch or "?"), format.formatAmount(t.route.baseRate or 0)), C.dim, C.bg)
@@ -366,29 +366,29 @@ function M.renderActions(config)
     return
   end
 
-  -- ===== 操作按钮 =====
+  -- ===== Action buttons =====
   local y = 37
 
-  drawText(2, y, "优先级", C.dim, C.bg)
-  drawButton(12, y, 5, "[顶]", true, "priority", { dir = "top" })
-  drawButton(18, y, 5, "[上]",  true, "priority", { dir = "up" })
-  drawButton(24, y, 7, "[下移]", true, "priority", { dir = "down" })
-  drawButton(32, y, 8, "[底部]", true, "priority", { dir = "bottom" })
+  drawText(2, y, "Priority", C.dim, C.bg)
+  drawButton(12, y, 5, "[Top]", true, "priority", { dir = "top" })
+  drawButton(18, y, 5, "[Up]",  true, "priority", { dir = "up" })
+  drawButton(24, y, 7, "[Down]", true, "priority", { dir = "down" })
+  drawButton(32, y, 8, "[Bottom]", true, "priority", { dir = "bottom" })
 
   -- MODE
   y = y + 2
-  drawText(2, y, "模式", C.dim, C.bg)
-  drawButton(12, y, 6, "[关闭]", true, "mode", { mode = "OFF" })
-  drawButton(19, y, 9, "[按目标]", true, "mode", { mode = "TARGET" })
-  drawButton(29, y, 8, "[持续]", true, "mode", { mode = "ALWAYS" })
+  drawText(2, y, "Mode", C.dim, C.bg)
+  drawButton(12, y, 6, "[Off]", true, "mode", { mode = "OFF" })
+  drawButton(19, y, 9, "[Target]", true, "mode", { mode = "TARGET" })
+  drawButton(29, y, 8, "[Always]", true, "mode", { mode = "ALWAYS" })
 
   -- VALUE
-  drawText(40, y, "目标量", C.dim, C.bg)
-  drawButton(47, y, 7, "[当前]", true, "set_current")
-  drawButton(55, y, 7, "[输入]", true, "edit_value")
+  drawText(40, y, "Target", C.dim, C.bg)
+  drawButton(47, y, 7, "[Cur]", true, "set_current")
+  drawButton(55, y, 7, "[Edit]", true, "edit_value")
 
   -- WEIGHT
-  drawText(65, y, "权重", C.dim, C.bg)
+  drawText(65, y, "Weight", C.dim, C.bg)
   drawButton(73, y, 5, "[-10]", true, "weight", { delta = -10 })
   drawButton(79, y, 5, "[-5]",  true, "weight", { delta = -5 })
   drawButton(85, y, 5, "[-1]",  true, "weight", { delta = -1 })
@@ -398,14 +398,14 @@ function M.renderActions(config)
 
   local selected = ui.selectedId and model.getById(ui.selectedId) or nil
   if selected and selected.domain == "pump" then
-    drawButton(112, y, 10, "[星球]", true, "edit_route", { field = "planetType" })
-    drawButton(123, y, 8, "[气体]", true, "edit_route", { field = "gasType" })
+    drawButton(112, y, 10, "[Planet]", true, "edit_route", { field = "planetType" })
+    drawButton(123, y, 8, "[Gas]", true, "edit_route", { field = "gasType" })
   elseif selected and selected.domain == "miner" then
     drawButton(112, y, 10, "[DRONE]", true, "edit_route", { field = "droneTier" })
     drawButton(123, y, 10, "[DIST]", true, "edit_route", { field = "distance" })
   end
 
-  -- 目标值快速设置
+  -- Quick target value presets
   y = y + 2
   local presets = {
     { label = "=10M",  val = 1e7 },
@@ -427,7 +427,7 @@ function M.renderActions(config)
     drawButton(x, y, 11, "[" .. p.label .. "]", true, "set_target", { val = p.val })
   end
 
-  -- 增加
+  -- Increase
   y = y + 1
   local adds = {
     { label = "+10M",  val = 1e7 },  { label = "+50M",  val = 5e7 },
@@ -443,7 +443,7 @@ function M.renderActions(config)
     drawButton(x, y, 11, "[" .. p.label .. "]", true, "add_target", { val = p.val })
   end
 
-  -- 减少
+  -- Decrease
   y = y + 1
   local subs = {
     { label = "-10M",  val = 1e7 },  { label = "-50M",  val = 5e7 },
@@ -459,7 +459,7 @@ function M.renderActions(config)
     drawButton(x, y, 11, "[" .. p.label .. "]", true, "sub_target", { val = p.val })
   end
 
-  -- STOP ALL 确认
+  -- STOP ALL confirmation
   if ui.stopAllConfirm > 0 and computer.uptime() < ui.stopAllConfirm then
     drawButton(W - 20, y - 3, 18, "[CONFIRM STOP?]", true, "stop_all_confirm")
   end
@@ -474,8 +474,8 @@ function M.renderSystemPage(config)
 
   local y = 37
 
-  -- 组件健康
-  drawText(2, y, "=== 组件健康 ===", C.header, C.bg)
+  -- Component health
+  drawText(2, y, "=== Component health ===", C.header, C.bg)
   y = y + 1
 
   local lines = {
@@ -495,12 +495,12 @@ function M.renderSystemPage(config)
     table.insert(lines, "snapshot error: " .. snap.error)
   end
 
-  -- 组件预算：OC CPU 有网络组件数上限（T1=8 T2=12 T3=16）。
-  -- 接近上限时新接入的泵/钻机会从 component.list 中“消失”，这是硬件层限制而非程序问题。
+  -- Component budget: the OC CPU has a cap on network components (T1=8 T2=12 T3=16).
+  -- Near the cap, newly attached pumps/miners "disappear" from component.list; this is a hardware-level limit, not a program bug.
   local okCount, compCount = pcall(computer.componentCount)
   if okCount and type(compCount) == "number" then
     table.insert(lines, string.format(
-      "components: %d  (CPU 上限: T1=8 T2=12 T3=16，超限会直接停机)", compCount))
+      "components: %d  (CPU limit: T1=8 T2=12 T3=16; exceeding it shuts the computer down)", compCount))
   end
 
   for _, line in ipairs(lines) do
@@ -508,12 +508,12 @@ function M.renderSystemPage(config)
     y = y + 1
   end
 
-  -- 机器状态 (右侧)
+  -- Machine status (right side)
   local my = 37
-  drawText(80, my, "=== 机器状态 ===", C.header, C.bg)
+  drawText(80, my, "=== Machine status ===", C.header, C.bg)
   my = my + 1
 
-  -- 按地址排序保证多机器时列表稳定；不设固定台数上限，占满右栏直到屏幕底部。
+  -- Sort by address so the list stays stable with many machines; there is no fixed machine limit, the right column is filled down to the bottom of the screen.
   local machines = {}
   for addr, w in pairs(ws) do
     machines[#machines + 1] = { address = addr, worker = w }
@@ -542,14 +542,14 @@ function M.renderSystemPage(config)
     end
   end
   if hidden > 0 and my <= H then
-    drawText(80, my, string.format("  ... 还有 %d 台未显示(屏幕高度限制)", hidden), C.dim, C.bg)
+    drawText(80, my, string.format("  ... %d more machines not shown (screen height limit)", hidden), C.dim, C.bg)
     my = my + 1
   end
 
-  -- 日志 (底部)
+  -- Log (bottom)
   y = math.max(y, my) + 1
   if y <= H then
-    drawText(2, y, "=== 最近日志 ===", C.header, C.bg)
+    drawText(2, y, "=== Recent log ===", C.header, C.bg)
     y = y + 1
   end
 
@@ -562,7 +562,7 @@ function M.renderSystemPage(config)
   end
 end
 
--- ========== 模态编辑框 ==========
+-- ========== Modal edit box ==========
 function M.openNumberModal(title, initialText, onSubmit)
   ui.modal = {
     kind = "number",
@@ -578,15 +578,15 @@ end
 function M.renderModal()
   if not ui.modal then return end
 
-  -- 模态框: 居中 40x6
+  -- Modal box: centered 40x6
   local mw, mh = 50, 7
   local mx = math.floor((W - mw) / 2) + 1
   local my = math.floor((H - mh) / 2) + 1
 
-  -- 背景
+  -- Background
   fillRect(mx, my, mw, mh, " ", C.fg, C.modal_bg)
 
-  -- 边框
+  -- Border
   drawText(mx, my, "+" .. string.rep("-", mw - 2) .. "+", C.header, C.modal_bg)
   drawText(mx, my + mh - 1, "+" .. string.rep("-", mw - 2) .. "+", C.header, C.modal_bg)
   for y = my + 1, my + mh - 2 do
@@ -594,14 +594,14 @@ function M.renderModal()
     drawText(mx + mw - 1, y, "|", C.header, C.modal_bg)
   end
 
-  -- 标题
+  -- Title
   drawText(mx + 2, my + 1, format.fit(ui.modal.title, mw - 4), C.header, C.modal_bg)
 
-  -- 输入框
+  -- Input box
   local inputY = my + 3
   fillRect(mx + 2, inputY, mw - 4, 1, " ", C.fg, C.bg)
   drawText(mx + 2, inputY, ui.modal.text, C.fg, C.bg)
-  -- 光标位置用反色
+  -- Draw the cursor position with inverted colors
   if ui.modal.cursor and ui.modal.cursor <= #ui.modal.text then
     local before = ui.modal.text:sub(1, ui.modal.cursor - 1)
     local char = ui.modal.text:sub(ui.modal.cursor, ui.modal.cursor)
@@ -610,12 +610,12 @@ function M.renderModal()
     end
   end
 
-  -- 错误
+  -- Error
   if ui.modal.error then
     drawText(mx + 2, inputY + 1, format.fit(ui.modal.error, mw - 4), C.fault, C.modal_bg)
   end
 
-  -- 提示
+  -- Hint
   drawText(mx + 2, my + mh - 2, "Enter=Submit  Esc=Cancel  Backspace=Del", C.dim, C.modal_bg)
 end
 
@@ -624,7 +624,7 @@ function M.closeModal()
   ui.dirty.all = true
 end
 
--- ========== 主渲染 ==========
+-- ========== Main render ==========
 function M.render(hw, config, now, targets, snapshotFresh)
   if ui.dirty.all then
     fillRect(1, 1, W, H, " ", C.fg, C.bg)
@@ -650,7 +650,7 @@ function M.markDirty()
   ui.dirty.actions = true
 end
 
--- ========== 事件分发 ==========
+-- ========== Event dispatch ==========
 function M.dispatch(ev, app)
   local name = ev[1]
   if not name then return end
@@ -667,20 +667,20 @@ function M.dispatch(ev, app)
     M.handleClipboard(ev[3], app)
   elseif name == "component_added" or name == "component_removed"
       or name == "component_available" or name == "component_unavailable" then
-    -- 硬件变更标记重扫
+    -- Hardware change marks a rescan
     app.needRescan = true
   end
 end
 
 function M.handleTouch(x, y, button, username, app)
-  -- 模态框优先
+  -- Modal box takes priority
   if ui.modal then
-    -- 点击模态外区域 = 取消
-    -- 这里简化：模态只能通过键盘操作
+    -- Clicking outside the modal = cancel
+    -- Simplified here: the modal can only be used with the keyboard
     return
   end
 
-  -- 高层组优先：actions > targets > header。
+  -- Higher layers first: actions > targets > header.
   for _, groupName in ipairs({"actions", "targets", "header"}) do
     local group = ui.hitboxGroups[groupName] or {}
     for i = #group, 1, -1 do
@@ -698,13 +698,13 @@ end
 
 function M.handleScroll(x, y, direction, app)
   if direction > 0 then
-    -- 向上滚 = 上一页
+    -- Scroll up = previous page
     if ui.pageOffset > 0 then
       ui.pageOffset = ui.pageOffset - 1
       ui.dirty.targets = true
     end
   else
-    -- 向下滚 = 下一页
+    -- Scroll down = next page
     local targets = model.getByDomain(ui.page)
     local maxItems = ROWS_PER_COL * 3
     local pages = math.max(1, math.ceil(#targets / maxItems))
@@ -724,7 +724,7 @@ function M.handleKeyDown(char, code, username, app)
     typed = char
   end
   if ui.modal then
-    -- 模态输入
+    -- Modal input
     if code == 28 then -- Enter
       local val, err = format.parseSize(ui.modal.text)
       if not val then
@@ -746,7 +746,7 @@ function M.handleKeyDown(char, code, username, app)
         ui.dirty.all = true
       end
     else
-      -- 普通字符
+      -- Ordinary characters
       if typed ~= "" and string.byte(typed) and string.byte(typed) >= 32 then
         ui.modal.text = ui.modal.text .. typed
         ui.modal.cursor = #ui.modal.text + 1
@@ -757,30 +757,30 @@ function M.handleKeyDown(char, code, username, app)
     return
   end
 
-  -- 已选目标时直接键入数字即可打开目标量输入框，不必先点“输入”。
+  -- With a target selected, typing a digit directly opens the target-amount input box; no need to click "Edit" first.
   if ui.selectedId and typed:match("^[0-9%.]$") then
-    M.openNumberModal("直接输入目标量（支持 M/G/T）", typed, function(val)
+    M.openNumberModal("Type target amount directly (M/G/T supported)", typed, function(val)
       local t = model.getById(ui.selectedId)
       if t then
         t.target = val
         if t.mode == "OFF" and val > 0 then t.mode = "TARGET" end
         app.configDirty = true
-        ui.lastAction = "目标量=" .. format.formatAmount(val)
+        ui.lastAction = "target=" .. format.formatAmount(val)
       end
     end)
     return
   end
 
-  -- 非模态快捷键（无选中目标时 1/2/3 切换页面）
-  if code == 2 then -- 1 键 = PUMP
+  -- Non-modal shortcuts (with no target selected, 1/2/3 switch pages)
+  if code == 2 then -- key 1 = PUMP
     ui.page = "pump"
     ui.pageOffset = 0
     M.markDirty()
-  elseif code == 3 then -- 2 键 = MINER
+  elseif code == 3 then -- key 2 = MINER
     ui.page = "miner"
     ui.pageOffset = 0
     M.markDirty()
-  elseif code == 4 then -- 3 键 = SYSTEM
+  elseif code == 4 then -- key 3 = SYSTEM
     ui.page = "system"
     M.markDirty()
   end
@@ -795,9 +795,9 @@ function M.handleClipboard(text, app)
   end
 end
 
--- ========== 动作处理 ==========
+-- ========== Action handling ==========
 function M.handleAction(action, payload, button, username, app)
-  -- 权限检查
+  -- Permission check
   if app.config.authorizedUsers then
     local authorized = false
     if username then
@@ -806,7 +806,7 @@ function M.handleAction(action, payload, button, username, app)
       end
     end
     if not authorized then
-      log.warn("ui", "未授权用户: " .. tostring(username))
+      log.warn("ui", "Unauthorized user: " .. tostring(username))
       return
     end
   end
@@ -829,7 +829,7 @@ function M.handleAction(action, payload, button, username, app)
     M.markDirty()
 
   elseif action == "refresh" then
-    app.nextInventoryScan = 0  -- 立即触发扫描
+    app.nextInventoryScan = 0  -- trigger a scan immediately
     ui.lastAction = "refresh requested"
 
   elseif action == "import_targets" then
@@ -841,7 +841,7 @@ function M.handleAction(action, payload, button, username, app)
     ui.lastAction = "rescan requested"
 
   elseif action == "stop_all" then
-    -- 二次确认
+    -- second confirmation
     local now = computer.uptime()
     if ui.stopAllConfirm > 0 and now < ui.stopAllConfirm then
       controller.stopAll("user requested")
@@ -908,7 +908,7 @@ function M.handleAction(action, payload, button, username, app)
     if ui.selectedId then
       local t = model.getById(ui.selectedId)
       if t then
-        M.openNumberModal("目标值 (如 10M, 1.5G, 500T)", tostring(math.floor(t.target)),
+        M.openNumberModal("Target value (e.g. 10M, 1.5G, 500T)", tostring(math.floor(t.target)),
           function(val)
             t.target = val
             ui.dirty.targets = true
@@ -936,7 +936,7 @@ function M.handleAction(action, payload, button, username, app)
       local t = model.getById(ui.selectedId)
       if t and payload and payload.field then
         local field = payload.field
-        M.openNumberModal("路由参数: " .. field, tostring(t.route[field] or 0), function(val)
+        M.openNumberModal("Route parameter: " .. field, tostring(t.route[field] or 0), function(val)
           t.route[field] = math.floor(val)
           ui.dirty.targets = true
           ui.dirty.details = true

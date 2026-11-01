@@ -1,49 +1,49 @@
--- GTNH 2.9.0-RC-1 太空钻机全部 40 种流体目录
--- 路由和基础抽取速度来自 GT5-Unofficial 5.09.54.183 SpacePumpingRecipes（与 5.09.52.594 完全一致）。
+-- GTNH 2.9.0-RC-1 Space Drilling Module catalog of all 40 fluids
+-- Routes and base extraction rates come from GT5-Unofficial 5.09.54.183 SpacePumpingRecipes (identical to 5.09.52.594).
 
 local M = {}
 
 M.entries = {
-  {2,1,"氯苯",896000,{"chlorobenzene"}},
-  {3,1,"末影黏浆",32000,{"endergoo","ender_goo"}},
-  {3,2,"极重油",1400000,{"oil.extraheavy","extraheavyoil","heavy_oil"}},
-  {3,3,"岩浆",1800000,{"lava"}},
-  {3,4,"天然气",1400000,{"naturalgas","natural_gas"}},
-  {4,1,"硫酸",784000,{"sulfuricacid","sulfuric_acid"}},
-  {4,2,"熔融铁",896000,{"molten.iron","molten_iron"}},
-  {4,3,"石油",1400000,{"oil"}},
-  {4,4,"重油",1792000,{"oilheavy","heavy_oil"}},
-  {4,5,"熔融铅",896000,{"molten.lead","molten_lead"}},
-  {4,6,"原油",1400000,{"oilmedium","raw_oil"}},
-  {4,7,"轻油",780000,{"oillight","light_oil"}},
-  {4,8,"二氧化碳",1680000,{"carbondioxide","carbon_dioxide"}},
-  {5,1,"一氧化碳",4480000,{"carbonmonoxide","carbon_monoxide"}},
-  {5,2,"氦-3",2800000,{"helium-3","helium3"}},
-  {5,3,"盐水",2800000,{"saltwater","salt_water"}},
-  {5,4,"氦气",1400000,{"helium"}},
-  {5,5,"液态氧",896000,{"liquidoxygen","liquid_oxygen"}},
-  {5,6,"氖",32000,{"neon"}},
-  {5,7,"氩气",32000,{"argon"}},
-  {5,8,"氪",8000,{"krypton"}},
-  {5,9,"甲烷",1792000,{"methane"}},
-  {5,10,"硫化氢",392000,{"hydrogensulfide","hydrogen_sulfide"}},
-  {5,11,"乙烷",1194000,{"ethane"}},
-  {6,1,"氘",1568000,{"deuterium"}},
-  {6,2,"氚",240000,{"tritium"}},
-  {6,3,"氨气",240000,{"ammonia"}},
-  {6,4,"氙",16000,{"xenon"}},
-  {6,5,"乙烯",1792000,{"ethylene"}},
-  {7,1,"氢氟酸",672000,{"hydrofluoricacid","hydrofluoric_acid"}},
-  {7,2,"氟",1792000,{"fluorine"}},
-  {7,3,"氮气",1792000,{"nitrogen"}},
-  {7,4,"氧气",1792000,{"oxygen"}},
-  {8,1,"氢气",1568000,{"hydrogen"}},
-  {8,2,"液态空气",875000,{"liquidair","liquid_air"}},
-  {8,3,"熔融铜",672000,{"molten.copper","molten_copper"}},
-  {8,4,"不明液体",672000,{"unknowwater","unknown_liquid"}},
-  {8,5,"蒸馏水",17920000,{"ic2distilledwater","distilledwater","distilled_water"}},
-  {8,6,"氡",64000,{"radon"}},
-  {8,7,"熔融锡",672000,{"molten.tin","molten_tin"}},
+  {2,1,"Chlorobenzene",896000,{"chlorobenzene"}},
+  {3,1,"Ender Goo",32000,{"endergoo","ender_goo"}},
+  {3,2,"Extra Heavy Oil",1400000,{"oil.extraheavy","extraheavyoil","heavy_oil"}},
+  {3,3,"Lava",1800000,{"lava"}},
+  {3,4,"Natural Gas",1400000,{"naturalgas","natural_gas"}},
+  {4,1,"Sulfuric Acid",784000,{"sulfuricacid","sulfuric_acid"}},
+  {4,2,"Molten Iron",896000,{"molten.iron","molten_iron"}},
+  {4,3,"Oil",1400000,{"oil"}},
+  {4,4,"Heavy Oil",1792000,{"oilheavy","heavy_oil"}},
+  {4,5,"Molten Lead",896000,{"molten.lead","molten_lead"}},
+  {4,6,"Raw Oil",1400000,{"oilmedium","raw_oil"}},
+  {4,7,"Light Oil",780000,{"oillight","light_oil"}},
+  {4,8,"Carbon Dioxide",1680000,{"carbondioxide","carbon_dioxide"}},
+  {5,1,"Carbon Monoxide",4480000,{"carbonmonoxide","carbon_monoxide"}},
+  {5,2,"Helium-3",2800000,{"helium-3","helium3"}},
+  {5,3,"Salt Water",2800000,{"saltwater","salt_water"}},
+  {5,4,"Helium",1400000,{"helium"}},
+  {5,5,"Liquid Oxygen",896000,{"liquidoxygen","liquid_oxygen"}},
+  {5,6,"Neon",32000,{"neon"}},
+  {5,7,"Argon",32000,{"argon"}},
+  {5,8,"Krypton",8000,{"krypton"}},
+  {5,9,"Methane",1792000,{"methane"}},
+  {5,10,"Hydrogen Sulfide",392000,{"hydrogensulfide","hydrogen_sulfide"}},
+  {5,11,"Ethane",1194000,{"ethane"}},
+  {6,1,"Deuterium",1568000,{"deuterium"}},
+  {6,2,"Tritium",240000,{"tritium"}},
+  {6,3,"Ammonia",240000,{"ammonia"}},
+  {6,4,"Xenon",16000,{"xenon"}},
+  {6,5,"Ethylene",1792000,{"ethylene"}},
+  {7,1,"Hydrofluoric Acid",672000,{"hydrofluoricacid","hydrofluoric_acid"}},
+  {7,2,"Fluorine",1792000,{"fluorine"}},
+  {7,3,"Nitrogen",1792000,{"nitrogen"}},
+  {7,4,"Oxygen",1792000,{"oxygen"}},
+  {8,1,"Hydrogen",1568000,{"hydrogen"}},
+  {8,2,"Liquid Air",875000,{"liquidair","liquid_air"}},
+  {8,3,"Molten Copper",672000,{"molten.copper","molten_copper"}},
+  {8,4,"Unknown Liquid",672000,{"unknowwater","unknown_liquid"}},
+  {8,5,"Distilled Water",17920000,{"ic2distilledwater","distilledwater","distilled_water"}},
+  {8,6,"Radon",64000,{"radon"}},
+  {8,7,"Molten Tin",672000,{"molten.tin","molten_tin"}},
 }
 
 function M.routeKey(planet, gas)
@@ -51,9 +51,9 @@ function M.routeKey(planet, gas)
 end
 
 function M.populate(model)
-  -- 旧版本曾在每次启动时无条件重加整张目录，导致 seui.dat 里的列表逐次翻倍。
-  -- 这里先按 routeKey 去掉已加载目标里的重复项（保留先出现者，合并 sourceRef），
-  -- 再补齐目录中缺失的条目。无路由信息（"0:0"）的旧条目不参与去重，避免误并不同流体。
+  -- Older versions re-added the whole catalog unconditionally on every start, which made the list in seui.dat double each time.
+  -- Here we first remove duplicates among the loaded targets by routeKey (keep the first one, merge sourceRef),
+  -- then fill in any entries missing from the catalog. Old entries without route info ("0:0") are not deduplicated, to avoid wrongly merging different fluids.
   local existing = {}
   local duplicateIds = {}
   for _, t in ipairs(model.getTargets()) do

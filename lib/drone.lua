@@ -1,5 +1,5 @@
 -- SEUI lib/drone.lua
--- 太空采矿模块无人机供应后端
+-- Space Mining Module drone supply backend
 
 local log = require("lib.log")
 
@@ -11,26 +11,26 @@ local function validateSides(config)
   local droneSide = tonumber(config.droneSide)
   local inputSide = tonumber(config.inputSide)
   if not droneSide or not inputSide or droneSide < 0 or droneSide > 5 or inputSide < 0 or inputSide > 5 then
-    return nil, nil, "droneSide/inputSide 必须是 sides 的 0..5 方向值"
+    return nil, nil, "droneSide/inputSide must be sides direction values 0..5"
   end
   if droneSide == inputSide then
-    return nil, nil, "droneSide 与 inputSide 不能相同"
+    return nil, nil, "droneSide and inputSide must not be the same"
   end
   return droneSide, inputSide
 end
 
 local function readStacks(transposer, side)
   local ok, iter = pcall(transposer.getAllStacks, side)
-  if not ok or not iter then return nil, "无法读取无人机库存" end
+  if not ok or not iter then return nil, "Unable to read drone inventory" end
   local ok2, stacks = pcall(iter.getAll)
-  if not ok2 or type(stacks) ~= "table" then return nil, "无人机库存迭代失败" end
+  if not ok2 or type(stacks) ~= "table" then return nil, "Drone inventory iteration failed" end
   return stacks
 end
 
 local function findFleetDroneSlot(stacks, tier, required, allowRandom)
-  -- 与 Wiki 原程序一致：只从第一只转运器读取一次共享末影箱，记住槽位和数量，
-  -- 随后所有转运器都从同一槽位各取 1 个。不能在每次转移后重读其他转运器的
-  -- getAllStacks；同频道末影箱的远端视图可能延迟一拍，正是此前误报“库存发生变化”的原因。
+  -- Same as the original Wiki program: read the shared ender chest only once, from the first transposer, and remember the slot and count;
+  -- then every transposer takes 1 item from that same slot. Do not re-read the other transposers'
+  -- getAllStacks after each transfer; the remote view of a same-channel ender chest can lag by one tick, which caused the earlier false "inventory changed" reports.
   for slot, stack in pairs(stacks) do
     if stack and stack.name == DRONE_ITEM
         and tonumber(stack.damage or -1) == tier - 1
@@ -48,49 +48,49 @@ local function findFleetDroneSlot(stacks, tier, required, allowRandom)
   return nil, 0, nil, false
 end
 
--- Wiki 同步模式：所有矿机追同一目标，所有转运器方向一致、连接同频道末影箱。
--- 该函数一次完成整个矿机组的无人机退回与重新分发；调用方必须先确认所有矿机均已停稳。
+-- Wiki sync mode: all miners chase the same target; all transposers face the same direction and connect to the same-channel ender chest.
+-- This function returns and redistributes drones for the whole miner group in one pass; the caller must first confirm that every miner has fully stopped.
 local function prepareTransposerFleet(assignment, config, hw)
   local transposers = hw.transposers or {}
-  if #transposers == 0 then return false, "未发现 transposer" end
+  if #transposers == 0 then return false, "No transposer found" end
   if hw.miners and #hw.miners > 0 and #transposers ~= #hw.miners then
-    return false, string.format("矿机/转运器数量不一致：miners=%d transposers=%d", #hw.miners, #transposers)
+    return false, string.format("Miner/transposer count mismatch: miners=%d transposers=%d", #hw.miners, #transposers)
   end
 
   local droneSide, inputSide, sideErr = validateSides(config)
   if not droneSide then return false, sideErr end
   local tier = tonumber(assignment.params and assignment.params.droneTier) or 1
 
-  -- 先统一退回旧无人机。输入总线为空时 moved=0 不是故障，但调用异常必须失败。
+  -- First return all old drones. moved=0 with an empty input bus is not a fault, but a call error must fail.
   for _, transposer in ipairs(transposers) do
     local ok, err = pcall(transposer.proxy.transferItem, inputSide, droneSide)
-    if not ok then return false, "退回旧无人机失败: " .. tostring(err) end
+    if not ok then return false, "Failed to return old drones: " .. tostring(err) end
   end
 
-  -- 按 Wiki 布局，只读取第一只转运器看到的共享末影箱，并固定一个目标等级槽位。
+  -- Following the Wiki layout, only read the shared ender chest as seen by the first transposer and lock one target-tier slot.
   local firstStacks, firstErr = readStacks(transposers[1].proxy, droneSide)
   if not firstStacks then return false, firstErr end
   local selectedSlot, available, selectedTier, random = findFleetDroneSlot(
     firstStacks, tier, #transposers, config.allowRandomDrone)
   if not selectedSlot then
-    return false, string.format("MK-%d 采矿无人机不足：同一堆至少需要%d个", tier, #transposers)
+    return false, string.format("Not enough MK-%d mining drones: need at least %d in a single stack", tier, #transposers)
   end
   if random then
-    log.warn("drone", string.format("MK-%d 不足，整个矿机组统一改用 MK-%d", tier, selectedTier))
+    log.warn("drone", string.format("MK-%d unavailable, switching the whole miner group to MK-%d", tier, selectedTier))
   end
 
-  -- 所有矿机严格各取一个、且全部来自同一槽，因此不会混入箱内另一等级的无人机。
+  -- Every miner takes exactly one drone, all from the same slot, so drones of another tier in the chest are never mixed in.
   local remaining = available
   for _, transposer in ipairs(transposers) do
-    if remaining <= 0 then return false, "无人机计数耗尽" end
+    if remaining <= 0 then return false, "Drone count exhausted" end
     local ok, moved = pcall(transposer.proxy.transferItem, droneSide, inputSide, 1, selectedSlot)
     if not ok or not moved or tonumber(moved) < 1 then
-      return false, "无人机转移失败: " .. tostring(moved)
+      return false, "Drone transfer failed: " .. tostring(moved)
     end
     remaining = remaining - 1
   end
 
-  log.info("drone", string.format("已向 %d 台矿机各分发 1 个 MK-%d 无人机（共享槽位%d）",
+  log.info("drone", string.format("Dispatched 1 drone each to %d miners (MK-%d, shared slot %d)",
     #transposers, selectedTier, selectedSlot))
   return true
 end
@@ -99,13 +99,13 @@ local function prepareME(assignment, config, hw)
   local tier = tonumber(assignment.params and assignment.params.droneTier) or 1
   local mapping = (config.droneDatabaseSlots or {})[tier]
   if not mapping or not mapping[1] or not mapping[2] then
-    return false, "droneDatabaseSlots 未配置 MK-" .. tostring(tier)
+    return false, "droneDatabaseSlots not configured for MK-" .. tostring(tier)
   end
-  if not hw.database then return false, "database 不在线" end
-  if not hw.meInterface then return false, "me_interface 不在线" end
+  if not hw.database then return false, "database is offline" end
+  if not hw.meInterface then return false, "me_interface is offline" end
   local me = hw.meInterface.proxy
   if not me.setInterfaceConfiguration then
-    return false, "选定 me_interface 没有 setInterfaceConfiguration"
+    return false, "The selected me_interface has no setInterfaceConfiguration"
   end
 
   local ok1, err1 = pcall(me.setInterfaceConfiguration, 1, hw.database.address, mapping[1], 64)
@@ -130,7 +130,7 @@ function M.prepare(assignment, config, hw)
   elseif backend == "manual" then
     return true
   end
-  return false, "未知无人机后端: " .. tostring(backend)
+  return false, "Unknown drone backend: " .. tostring(backend)
 end
 
 return M

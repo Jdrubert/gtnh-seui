@@ -1,5 +1,5 @@
 -- SEUI lib/scheduler.lua
--- 调度器：为每个 domain 独立选择最优候选目标
+-- Scheduler: independently picks the best candidate target for each domain
 
 local log = require("lib.log")
 local model = require("lib.model")
@@ -7,20 +7,20 @@ local format = require("lib.format")
 
 local M = {}
 
--- 评分计算
+-- Score computation
 local function computeScore(target)
   local available = math.max(0, target.current + target.pending)
   local deficit = 0
   if target.target > 0 then
     deficit = math.max(0, 1 - (available / target.target))
   elseif target.mode == "ALWAYS" then
-    deficit = 0.5  -- ALWAYS 无缺口概念，给固定中性分
+    deficit = 0.5  -- ALWAYS has no notion of deficit, so give a fixed neutral score
   end
   local score = deficit * 100 + (target.weight or 0)
   return score, deficit
 end
 
--- 候选筛选
+-- Candidate selection
 local function buildCandidates(targets, now)
   local lowTargets = {}
   local alwaysTargets = {}
@@ -41,7 +41,7 @@ local function buildCandidates(targets, now)
       t.runtime.lastError = "invalid route"
     elseif t.mode == "TARGET" then
       local ratio = model.getRatio(t)
-      -- 未运行目标低于 lowRatio 才启动；已运行目标保持到 highRatio 才停止。
+      -- A target that is not running starts only below lowRatio; a running target keeps going until highRatio.
       local shouldRun = ratio < t.lowRatio
           or (t.runtime.state == "RUN" and ratio < t.highRatio)
       if t.target > 0 and shouldRun then
@@ -52,13 +52,13 @@ local function buildCandidates(targets, now)
       local score, deficit = computeScore(t)
       table.insert(alwaysTargets, { target = t, score = score, deficit = deficit })
     end
-    -- OFF 不进入候选
+    -- OFF targets never become candidates
   end
 
-  -- LOW 层优先；空时取 ALWAYS
+  -- The LOW tier has priority; when it is empty, use ALWAYS
   local candidates = #lowTargets > 0 and lowTargets or alwaysTargets
 
-  -- 排序：分数降序，order 升序，lastServed 升序
+  -- Sort: score descending, order ascending, lastServed ascending
   table.sort(candidates, function(a, b)
     if a.score ~= b.score then return a.score > b.score end
     if a.target.order ~= b.target.order then return a.target.order < b.target.order end
@@ -68,9 +68,9 @@ local function buildCandidates(targets, now)
   return candidates
 end
 
--- 为 domain 生成任务
--- workers: 该 domain 的机器列表
--- compatAllOneTarget: 兼容模式，所有机器追同一目标
+-- Generate assignments for a domain
+-- workers: the list of machines in this domain
+-- compatAllOneTarget: compatibility mode, all machines chase the same target
 function M.plan(domain, targets, workers, now, config)
   local candidates = buildCandidates(targets, now)
   if #candidates == 0 then
@@ -83,13 +83,13 @@ function M.plan(domain, targets, workers, now, config)
   local assignments = {}
   if domain == "pump" then
     if config and config.compatAllPumpsOneTarget then
-      -- 所有泵追同一目标
+      -- All pumps chase the same target
       for _, pump in ipairs(workers) do
         table.insert(assignments, {
           worker = pump,
           domain = "pump",
           target = target,
-          recipe = 0,  -- 所有 recipe 指同一目标
+          recipe = 0,  -- all recipes point to the same target
           params = {
             planetType = target.route.planetType or 0,
             gasType = target.route.gasType or 0,
@@ -98,8 +98,8 @@ function M.plan(domain, targets, workers, now, config)
         })
       end
     else
-      -- 高级模式：每个 recipe 分配不同候选
-      -- 第一版暂不实现，回退到兼容模式
+      -- Advanced mode: assign a different candidate to each recipe
+      -- Not implemented in the first version; fall back to compatibility mode
       for _, pump in ipairs(workers) do
         table.insert(assignments, {
           worker = pump,

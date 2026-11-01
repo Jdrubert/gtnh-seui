@@ -1,5 +1,5 @@
 -- SEUI lib/log.lua
--- 日志轮转与界面日志缓冲
+-- Log rotation and UI log buffer
 
 local fs = require("filesystem")
 local computer = require("computer")
@@ -11,7 +11,7 @@ local LOG_KEEP = 3
 local LOG_FILE = "/var/log/seui.log"
 local UI_BUFFER_MAX = 50
 
-local entries = {}     -- 界面日志缓冲
+local entries = {}     -- UI log buffer
 local file = nil
 local filePath = LOG_FILE
 local bytesWritten = 0
@@ -20,7 +20,7 @@ function M.init(path, maxSize, keep)
   filePath = path or filePath
   LOG_MAX = maxSize or LOG_MAX
   LOG_KEEP = keep or LOG_KEEP
-  -- 确保目录
+  -- Make sure the directory exists
   local dir = fs.path(filePath)
   if dir and not fs.exists(dir) then
     fs.makeDirectory(dir)
@@ -54,13 +54,13 @@ local function write(level, domain, msg)
   local ts = os.date("%H:%M:%S")
   local line = string.format("[%s] %s/%s: %s", ts, domain or "?", level, msg)
 
-  -- 界面缓冲
+  -- UI buffer
   table.insert(entries, line)
   if #entries > UI_BUFFER_MAX then
     table.remove(entries, 1)
   end
 
-  -- 文件
+  -- File
   if file then
     file:write(line .. "\n")
     file:flush()

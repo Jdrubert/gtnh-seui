@@ -1,5 +1,5 @@
 -- SEUI lib/model.lua
--- 目标模型管理
+-- Target model management
 
 local format = require("lib.format")
 local log = require("lib.log")
@@ -14,7 +14,7 @@ local function makeTarget(t)
   local target = {
     id = t.id or ("target_" .. tostring(nextOrder)),
     domain = t.domain or "pump",
-    label = t.label or t.id or "未命名",
+    label = t.label or t.id or "Unnamed",
     item = t.item or nil,
     fluid = t.fluid or nil,
     fluidAliases = t.fluidAliases or nil,
@@ -106,14 +106,14 @@ function M.moveOrder(id, direction)
     targets[idx], targets[idx+1] = targets[idx+1], targets[idx]
   end
 
-  -- 重排 order
+  -- Renumber order
   for i, t in ipairs(targets) do
     t.order = i
   end
   return true
 end
 
--- 从 level_maintainer 导入目标
+-- Import targets from level_maintainer
 function M.importFromMaintainers(maintainers, profile)
   local imported = 0
   local seen = {}
@@ -163,14 +163,14 @@ function M.importFromMaintainers(maintainers, profile)
             sourceRef = { address = m.address, slot = slot },
             route = decoded,
           }
-          -- 对流体目标补全 route 字段
+          -- Fill in the route fields for fluid targets
           if isFluid and decoded.planetType then
             target.route.planetType = decoded.planetType
             target.route.gasType = decoded.gasType
           end
 
           local existing = type(seen[id]) == "table" and seen[id] or nil
-          -- 内置 40 流体目录使用稳定路由 ID；请求器 registry 名可能不同。
+          -- The built-in 40-fluid catalog uses stable route IDs; the requester's registry names may differ.
           if isFluid and not existing then
             for _, candidate in ipairs(targets) do
               if candidate.domain == "pump" and candidate.route
@@ -182,7 +182,7 @@ function M.importFromMaintainers(maintainers, profile)
             end
           end
           if existing then
-            -- 显式重新导入只覆盖请求器拥有的字段，保留 weight/order。
+            -- An explicit re-import only overwrites fields owned by the requester and keeps weight/order.
             existing.label = target.label
             existing.fluid = target.fluid or existing.fluid
             if isFluid then
@@ -209,11 +209,11 @@ function M.importFromMaintainers(maintainers, profile)
     end
   end
 
-  log.info("model", string.format("从缓存器导入 %d 个目标 (profile=%s)", imported, profile))
+  log.info("model", string.format("Imported %d targets from maintainers (profile=%s)", imported, profile))
   return imported
 end
 
--- 更新目标的当前库存
+-- Update the current stock of a target
 function M.updateCurrent(target, snapshot)
   if target.domain == "pump" and target.fluid then
     local amount = snapshot.fluids[target.fluid] or 0
@@ -228,7 +228,7 @@ function M.updateCurrent(target, snapshot)
   target.runtime.snapshotAt = snapshot.timestamp
 end
 
--- 计算缺口比例
+-- Compute the deficit ratio
 function M.getRatio(target)
   local available = math.max(0, target.current + target.pending)
   if target.target > 0 then
@@ -237,7 +237,7 @@ function M.getRatio(target)
   return 0
 end
 
--- 推导状态
+-- Derive state
 function M.deriveState(target, snapshotFresh, machineActive, hasPendingTask)
   local rt = target.runtime
 

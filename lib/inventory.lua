@@ -1,6 +1,6 @@
 -- SEUI lib/inventory.lua
--- ME 库存扫描：流体一次拉取、物品按 registry id 批量拉取。
--- 两个 domain 各自保留最后成功快照，任何一侧失败都不会把库存误写成 0。
+-- ME inventory scan: fluids are fetched in one call, items are fetched in bulk by registry id.
+-- Each domain keeps its last successful snapshot, so a failure on either side never wrongly writes the stock as 0.
 
 local log = require("lib.log")
 local format = require("lib.format")
@@ -63,7 +63,7 @@ local function scanItems(proxy, targets)
 
   local ok, list = pcall(proxy.getItemsInNetworkById, names)
   if not ok then
-    log.warn("inventory", "批量物品查询失败，回退逐项查询: " .. tostring(list))
+    log.warn("inventory", "Bulk item query failed, falling back to per-item queries: " .. tostring(list))
     return scanItemsFallback(proxy, targets)
   end
   if type(list) ~= "table" then return nil, "getItemsInNetworkById returned non-table" end
@@ -92,13 +92,13 @@ function M.scan(fluidProxy, itemProxy, minerTargets)
     snapshot.fluids = fluids
     snapshot.fluidTimestamp = now
   else
-    log.error("inventory", "流体扫描失败，保留旧快照: " .. tostring(fluidErr))
+    log.error("inventory", "Fluid scan failed, keeping the old snapshot: " .. tostring(fluidErr))
   end
   if items then
     snapshot.items = items
     snapshot.itemTimestamp = now
   else
-    log.error("inventory", "物品扫描失败，保留旧快照: " .. tostring(itemErr))
+    log.error("inventory", "Item scan failed, keeping the old snapshot: " .. tostring(itemErr))
   end
 
   if fluidErr or itemErr then

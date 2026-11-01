@@ -1,11 +1,11 @@
 -- SEUI lib/format.lua
--- 数值格式化、Unicode 截断与填充
+-- Number formatting, Unicode truncation and padding
 
 local unicode = require("unicode")
 
 local M = {}
 
--- SI 数量缩写
+-- SI amount abbreviations
 function M.formatAmount(n)
   n = tonumber(n) or 0
   local abs = math.abs(n)
@@ -18,9 +18,9 @@ function M.formatAmount(n)
   end
 end
 
--- OpenComputers 1.12.62 的 unicode.wtrunc 在请求宽度大于字符串实际宽度时
--- 会越过字符串末尾并抛出 `index N, length N`。它使用严格截断阈值，
--- 所以要先测宽；确需截断时传 width+1，才能保留恰好装得下的末字符。
+-- In OpenComputers 1.12.62, unicode.wtrunc, when the requested width exceeds the string's actual width,
+-- runs past the end of the string and throws `index N, length N`. It uses a strict truncation threshold,
+-- so measure the width first; when truncation is really needed, pass width+1 to keep a final character that fits exactly.
 local function truncateToWidth(text, width)
   text = tostring(text or "")
   width = math.max(0, math.floor(tonumber(width) or 0))
@@ -31,7 +31,7 @@ local function truncateToWidth(text, width)
   return truncated, unicode.wlen(truncated)
 end
 
--- 将文本截断/填充到指定显示宽度
+-- Truncate/pad text to the given display width
 function M.fit(text, width)
   width = math.max(0, math.floor(tonumber(width) or 0))
   local textWidth
@@ -43,7 +43,7 @@ function M.fit(text, width)
   return text
 end
 
--- 右对齐
+-- Right-align
 function M.fitRight(text, width)
   width = math.max(0, math.floor(tonumber(width) or 0))
   local textWidth
@@ -55,7 +55,7 @@ function M.fitRight(text, width)
   return text
 end
 
--- 居中
+-- Center
 function M.fitCenter(text, width)
   width = math.max(0, math.floor(tonumber(width) or 0))
   local textWidth
@@ -69,7 +69,7 @@ function M.fitCenter(text, width)
   return text
 end
 
--- 解析 "10M" / "1.5G" / "500T" / "12345" 为数字
+-- Parse "10M" / "1.5G" / "500T" / "12345" into a number
 function M.parseSize(str)
   str = tostring(str or ""):gsub("^%s+", ""):gsub("%s+$", ""):lower()
   if str == "" then return nil, "empty" end
@@ -90,7 +90,7 @@ function M.parseSize(str)
   return result
 end
 
--- 安全的整数除法 (Lua 5.2/5.3 兼容)
+-- Safe integer division (Lua 5.2/5.3 compatible)
 function M.intDiv(a, b)
   return math.floor(a / b)
 end
@@ -100,7 +100,7 @@ function M.clamp(v, lo, hi)
   return math.max(lo, math.min(hi, v))
 end
 
--- 时间格式化 mm:ss
+-- Time formatting mm:ss
 function M.formatDuration(seconds)
   seconds = math.max(0, math.floor(tonumber(seconds) or 0))
   local m = math.floor(seconds / 60)
@@ -108,19 +108,19 @@ function M.formatDuration(seconds)
   return string.format("%d:%02d", m, s)
 end
 
--- 提取 itemKey
+-- Build the itemKey
 function M.itemKey(name, damage)
   return tostring(name) .. ":" .. tostring(damage or 0)
 end
 
--- 旧 packed batch 解码
--- v1 简单格式：流体 planetType*1000+gasType, 矿物 droneTier*1000+distance
--- v2.2 扩展矿物：droneTier*100000000 + distance*100000 + overdrive*10000
+-- Legacy packed batch decoding
+-- v1 simple format: fluid planetType*1000+gasType, ore droneTier*1000+distance
+-- v2.2 extended ore: droneTier*100000000 + distance*100000 + overdrive*10000
 function M.decodePackedBatch(packed, isFluid, profile)
   packed = tonumber(packed) or 0
-  -- 检查停止标记
+  -- Check the stop marker
   local stopAfter = false
-  -- 100000 标记只属于 v1 简单格式。v2.2 正常编码本来就远大于它。
+  -- The 100000 marker only belongs to the v1 simple format. Normal v2.2 encodings are far larger than it.
   if profile ~= "v2.2_extended" and packed >= 100000 then
     stopAfter = true
     packed = packed - 100000

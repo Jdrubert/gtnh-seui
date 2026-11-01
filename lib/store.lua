@@ -1,5 +1,5 @@
 -- SEUI lib/store.lua
--- 配置持久化 (原子保存 + bak 恢复)
+-- Config persistence (atomic save + bak recovery)
 
 local fs = require("filesystem")
 local serialization = require("serialization")
@@ -9,7 +9,7 @@ local M = {}
 
 local DATA_FILE = "/etc/seui.dat"
 
--- OpenOS 1.12.62 的反序列化函数名是 unserialize；host mock/部分兼容库可能叫 deserialize。
+-- In OpenOS 1.12.62 the deserialize function is named unserialize; a host mock or some compatibility libraries may call it deserialize.
 local function decode(content)
   local fn = serialization.unserialize or serialization.deserialize
   if type(fn) ~= "function" then return nil, "unserialize unavailable" end
@@ -45,21 +45,21 @@ end
 function M.load()
   local content = readAll(DATA_FILE)
   if not content or content == "" then
-    -- 尝试 bak
+    -- Try bak
     content = readAll(DATA_FILE .. ".bak")
     if not content or content == "" then
       return nil, "no config file"
     end
-    log.warn("store", "主配置缺失，从 bak 恢复")
+    log.warn("store", "Main config missing, restoring from bak")
   end
   local data, decodeErr = decode(content)
   if type(data) ~= "table" then
-    -- 尝试 bak
+    -- Try bak
     content = readAll(DATA_FILE .. ".bak")
     if content and content ~= "" then
       data = decode(content)
       if type(data) == "table" then
-        log.warn("store", "主配置损坏，从 bak 恢复")
+        log.warn("store", "Main config corrupted, restoring from bak")
         return data
       end
     end
@@ -69,12 +69,12 @@ function M.load()
 end
 
 function M.saveAtomic(config)
-  -- 序列化并验证
+  -- Serialize and verify
   local ok, serialized = pcall(serialization.serialize, config)
   if not ok then
     return false, "serialize error: " .. tostring(serialized)
   end
-  -- 反序列化验证
+  -- Deserialize to verify
   local verified, verifyErr = decode(serialized)
   if type(verified) ~= "table" then
     return false, "roundtrip verify failed: " .. tostring(verifyErr)
@@ -83,20 +83,20 @@ function M.saveAtomic(config)
   local tmpFile = DATA_FILE .. ".tmp"
   local bakFile = DATA_FILE .. ".bak"
 
-  -- 写 tmp
+  -- Write tmp
   local f = io.open(tmpFile, "w")
   if not f then return false, "cannot open tmp" end
   f:write(serialized)
   f:close()
 
-  -- 确认写成功
+  -- Confirm the write succeeded
   local check = readAll(tmpFile)
   if check ~= serialized then
     fs.remove(tmpFile)
     return false, "tmp write mismatch"
   end
 
-  -- 旋转: 旧 bak 删除, dat -> bak, tmp -> dat
+  -- Rotate: delete old bak, dat -> bak, tmp -> dat
   if fs.exists(bakFile) then fs.remove(bakFile) end
   if fs.exists(DATA_FILE) then
     local ok3, err = safeRename(DATA_FILE, bakFile)
@@ -107,12 +107,12 @@ function M.saveAtomic(config)
   end
   local ok4, err4 = safeRename(tmpFile, DATA_FILE)
   if not ok4 then
-    -- 尝试恢复 bak
+    -- Try to restore bak
     if fs.exists(bakFile) then safeRename(bakFile, DATA_FILE) end
     return false, "rename tmp->dat failed: " .. tostring(err4)
   end
 
-  log.info("store", "配置已保存 (" .. #serialized .. " bytes)")
+  log.info("store", "Config saved (" .. #serialized .. " bytes)")
   return true
 end
 

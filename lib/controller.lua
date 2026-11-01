@@ -1,5 +1,5 @@
 -- SEUI lib/controller.lua
--- 每台机器一个非阻塞、安全写后读回的控制状态机
+-- One non-blocking control state machine per machine, with safe write-then-read-back
 
 local computer = require("computer")
 local log = require("lib.log")
@@ -36,7 +36,7 @@ local function newWorker(machine, domain)
   }
 end
 
--- 与新硬件快照同步；同地址状态保留，避免周期重扫导致无意义停机。
+-- Sync with the new hardware snapshot; state for the same address is kept, so periodic rescans don't cause pointless stops.
 function M.init(hw, config)
   local old = workers
   local nextWorkers = {}
@@ -59,14 +59,14 @@ function M.init(hw, config)
     count = count + 1
   end
 
-  -- 消失的机器不能再调用，但记录告警。
+  -- Machines that disappeared can no longer be called, but a warning is logged.
   for address, _ in pairs(old) do
     if not nextWorkers[address] then
-      log.warn("controller", "机器离线: " .. address)
+      log.warn("controller", "Machine offline: " .. address)
     end
   end
   workers = nextWorkers
-  log.info("controller", "同步 " .. count .. " 台机器")
+  log.info("controller", "Synced " .. count .. " machines")
 end
 
 local function transition(w, phase, now)
@@ -83,10 +83,10 @@ function M.enqueue(assignment)
 
   local sig = assignmentSignature(assignment)
   if w.phase == "RUNNING" and sig == w.activeSignature then
-    return true -- 已经执行相同任务，不重复停机/写参
+    return true -- Already running the same task, don't stop/write parameters again
   end
   if w.pendingAssignment and sig == assignmentSignature(w.pendingAssignment) then
-    return true -- 已经排队
+    return true -- Already queued
   end
 
   w.pendingAssignment = assignment
@@ -95,9 +95,9 @@ function M.enqueue(assignment)
   elseif w.phase == "RUNNING" then
     transition(w, "REQUEST_STOP")
   elseif w.phase == "REQUEST_END" then
-    -- 等待停完后会处理 pending
+    -- The pending assignment is handled once it has stopped
   elseif w.phase == "FAULT" then
-    -- 保留任务，必须人工 Retry 才会继续
+    -- Keep the task; it only continues after a manual Retry
     return false, "worker is faulted"
   end
   return true
@@ -109,7 +109,7 @@ function M.stopDomain(domain, reason)
       w.pendingAssignment = nil
       if w.phase == "RUNNING" or w.phase == "START" then
         transition(w, "REQUEST_END")
-        log.info("controller", w.address:sub(1, 8) .. " 停止 " .. domain .. ": " .. tostring(reason))
+        log.info("controller", w.address:sub(1, 8) .. " stopped " .. domain .. ": " .. tostring(reason))
       end
     end
   end
@@ -123,7 +123,7 @@ local function applyParams(w, backend)
 
   if backend == "keyed" then
     if a.domain == "pump" then
-      -- 兼容模式：该模块全部 recipe 线程追同一目标。
+      -- Compatibility mode: all recipe threads of this module chase the same target.
       for recipe = 0, (w.threads or 1) - 1 do
         local ok1, err1 = pcall(proxy.setParameter, "recipe" .. recipe .. ".planetType", p.planetType or 0)
         if not ok1 then return false, err1 end
@@ -171,8 +171,8 @@ local function verifyParams(w, backend)
   local a = w.pendingAssignment
   if not a then return true end
   if backend == "legacy" then
-    -- beta1 旧接口无统一可依赖的读回方法；UI 会明确标为 legacy。
-    log.warn("controller", w.address:sub(1, 8) .. " legacy 后端无法可靠读回")
+    -- The old beta1 interface has no reliable read-back method; the UI clearly labels it legacy.
+    log.warn("controller", w.address:sub(1, 8) .. " legacy backend cannot be read back reliably")
     return true
   end
   if backend ~= "keyed" then return false, "unsupported parameter backend" end
@@ -228,8 +228,8 @@ local function sameFleetTask(a, b)
       and tonumber(ap.droneTier) == tonumber(bp.droneTier)
 end
 
--- transposer 后端采用 Wiki 的全体同步方式。只要任一矿机需要换目标，就把其余矿机
--- 一并停稳；所有矿机均进入 PREPARE 后只调用一次 drone.prepare，再同时进入 APPLY。
+-- The transposer backend uses the Wiki's whole-fleet sync approach. As soon as any miner needs to change target, the other miners are
+-- stopped too; once all miners reach PREPARE, drone.prepare is called only once, and then all enter APPLY together.
 local function advanceMinerFleetPrepare(now, config, hw)
   local leader = nil
   for _, w in pairs(workers) do
@@ -248,8 +248,8 @@ local function advanceMinerFleetPrepare(now, config, hw)
       if w.phase == "FAULT" then
         peerFault = true
       elseif not w.pendingAssignment then
-        -- 可能是仍在运行相同任务的旧矿机，或硬件重扫后新加入的矿机。
-        -- 为保证全局换无人机时没有任何矿机在工作，将它纳入同一次任务。
+        -- This may be an old miner still running the same task, or a miner newly added after a hardware rescan.
+        -- To make sure no miner is working while drones are swapped globally, include it in the same task.
         w.pendingAssignment = assignment
         if w.phase == "RUNNING" or w.phase == "IDLE" then
           transition(w, "REQUEST_STOP", now)
@@ -257,7 +257,7 @@ local function advanceMinerFleetPrepare(now, config, hw)
         allReady = false
       elseif droneBackend(w.pendingAssignment, config) ~= "transposer"
           or not sameFleetTask(w.pendingAssignment, assignment) then
-        fail(w, "矿机组存在不一致的无人机任务", now)
+        fail(w, "Inconsistent drone tasks in the miner group", now)
         peerFault = true
       elseif w.phase ~= "PREPARE" then
         allReady = false
@@ -268,7 +268,7 @@ local function advanceMinerFleetPrepare(now, config, hw)
   if peerFault then
     for _, w in pairs(workers) do
       if w.domain == "miner" and w.phase ~= "FAULT" then
-        fail(w, "矿机组内其他机器故障，取消同步换无人机", now)
+        fail(w, "Another machine in the miner group faulted, cancelling the synchronized drone swap", now)
       end
     end
     return
@@ -327,7 +327,7 @@ function M.tick(now, config, hw)
         local ok, err = drone.prepare(w.pendingAssignment, config, hw)
         if not ok then fail(w, "PREPARE: " .. tostring(err), now)
         else transition(w, "APPLY", now) end
-      end -- transposer 后端由 advanceMinerFleetPrepare 统一推进
+      end -- the transposer backend is advanced uniformly by advanceMinerFleetPrepare
 
     elseif w.phase == "APPLY" then
       local ok, err = applyParams(w, backend)

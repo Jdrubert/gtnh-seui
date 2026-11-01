@@ -1,5 +1,5 @@
 -- SEUI lib/discovery.lua
--- 硬件组件发现与绑定
+-- Hardware component discovery and binding
 
 local component = require("component")
 local log = require("lib.log")
@@ -20,7 +20,7 @@ local hw = {
   lastScan = 0,
 }
 
--- 泵等级信息
+-- Pump tier info
 local PUMP_INFO = {
   t1 = { threads = 1, mult = 4,   tier = 1 },
   t2 = { threads = 4, mult = 4,   tier = 2 },
@@ -100,7 +100,7 @@ function M.scan()
     end
   end
 
-  -- fluid_interface (AE2FC 二合一接口, 复合驱动同时暴露网络方法)
+  -- fluid_interface (AE2FC 2-in-1 interface; the composite driver also exposes the network methods)
   hw.fluidInterface = nil
   for addr in component.list("fluid_interface") do
     local p = safeProxy(addr)
@@ -110,7 +110,7 @@ function M.scan()
     end
   end
 
-  -- me_interface (物品网络)
+  -- me_interface (item network)
   hw.meInterface = nil
   for addr in component.list("me_interface") do
     local p = safeProxy(addr)
@@ -120,7 +120,7 @@ function M.scan()
     end
   end
 
-  -- me_controller 对缺失的一侧独立兜底
+  -- me_controller independently covers whichever side is missing
   if not hw.fluidInterface or not hw.meInterface then
     for addr in component.list("me_controller") do
       local p = safeProxy(addr)
@@ -132,8 +132,8 @@ function M.scan()
     end
   end
 
-  -- 某些 AE/AE2FC 复合驱动的组件名并非固定 me_interface/fluid_interface。
-  -- 最后按真实方法能力扫描整张 OC 网络，避免“AE 有存储但 preferredName 不匹配”。
+  -- Some AE/AE2FC composite drivers use component names other than the fixed me_interface/fluid_interface.
+  -- As a last resort, scan the whole OC network by actual method capability, to avoid the case "AE has storage but the preferredName doesn't match".
   if not hw.fluidInterface or not hw.meInterface then
     for addr in component.list() do
       local ok, methods = pcall(component.methods, addr)
@@ -145,11 +145,11 @@ function M.scan()
           if p then
             if hasFluids and not hw.fluidInterface then
               hw.fluidInterface = { address = addr, proxy = p }
-              log.info("discovery", "按能力发现流体网络组件: " .. addr)
+              log.info("discovery", "Found fluid network component by capability: " .. addr)
             end
             if hasItems and not hw.meInterface then
               hw.meInterface = { address = addr, proxy = p }
-              log.info("discovery", "按能力发现物品网络组件: " .. addr)
+              log.info("discovery", "Found item network component by capability: " .. addr)
             end
           end
         end
@@ -175,13 +175,13 @@ function M.scan()
     hw.screen = component.screen
   end
 
-  -- 参数接口探测
+  -- Parameter interface detection
   M.detectParamBackend()
 
   hw.lastScan = require("computer").uptime()
 
   log.info("discovery", string.format(
-    "发现 %d 泵, %d 矿机, %d 缓存器, %d 转运器, fluidIF=%s, meIF=%s, backend=%s",
+    "Found %d pumps, %d miners, %d maintainers, %d transposers, fluidIF=%s, meIF=%s, backend=%s",
     #hw.pumps, #hw.miners, #hw.levelMaintainers, #hw.transposers,
     tostring(hw.fluidInterface ~= nil), tostring(hw.meInterface ~= nil),
     hw.paramBackend
@@ -202,7 +202,7 @@ function M.detectParamBackend()
   if ok and type(result) == "table" then
     methods = result
   else
-    -- 尝试直接调用
+    -- Try calling directly
     local ok2, params = pcall(sample.proxy.getParameters)
     if ok2 then
       hw.paramBackend = "keyed"
@@ -215,7 +215,7 @@ function M.detectParamBackend()
   local hasSetParam = false
   local hasSetParams = false
   local hasGetParameters = false
-  -- component.methods() 返回 methodName -> direct(boolean) 映射。
+  -- component.methods() returns a methodName -> direct(boolean) map.
   for methodName, _ in pairs(methods) do
     if methodName == "setParameter" then hasSetParam = true end
     if methodName == "getParameters" then hasGetParameters = true end
