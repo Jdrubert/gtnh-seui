@@ -18,6 +18,12 @@ if runningProgram then
   package.path = baseDir .. "?.lua;" .. baseDir .. "?/init.lua;" .. package.path
 end
 
+-- OpenOS caches required modules until reboot. Drop our own modules from the cache so every
+-- launch starts clean (otherwise old targets, machine FAULT states and config edits carry over).
+for name in pairs(package.loaded) do
+  if name == "config" or name:match("^lib%.") then package.loaded[name] = nil end
+end
+
 -- Load modules
 local config = require("config")
 local log = require("lib.log")
