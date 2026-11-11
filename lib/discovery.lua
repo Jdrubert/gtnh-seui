@@ -22,9 +22,9 @@ local hw = {
 
 -- Pump tier info
 local PUMP_INFO = {
-  t1 = { threads = 1, mult = 4,   tier = 1 },
-  t2 = { threads = 4, mult = 4,   tier = 2 },
-  t3 = { threads = 4, mult = 64,  tier = 3 },
+  ["1"] = { threads = 1, mult = 4,   tier = 1 },
+  ["2"] = { threads = 4, mult = 4,   tier = 2 },
+  ["3"] = { threads = 4, mult = 64,  tier = 3 },
 }
 
 local function matchPumpTier(name)
